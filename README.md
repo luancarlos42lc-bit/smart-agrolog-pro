@@ -62,3 +62,14 @@ Tentativas de Injeção e Execução Maliciosa
 Veredito da IA: O código apresentou 0% de quebra de execução (Zero Crashes). A blindagem baseada em construtores seguros (isinstance, try/except e validação datetime) garantiu que qualquer anomalia fosse interceptada e neutralizada, atestando a altíssima confiabilidade lógica e matemática do software.
 
 Desenvolvido com base na engenharia logística do agronegócio de precisão.
+
+## 📸 Demonstração e Laudos de Teste
+
+**1. Sistema em Execução (Terminal):**
+![Execução do Sistema](0.PNG)
+
+**2. Relatório de Fuzzing (Início do Ataque):**
+![Relatório Fuzzing 1](1.PNG)
+
+**3. Veredito da IA (Sistema Indestrutível):**
+![Relatório Fuzzing 2](2.PNG)
