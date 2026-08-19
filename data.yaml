@@ -1,0 +1,16 @@
+
+                     # ARQUIVO DE CONFIGURAÇÃO DO DATASET (YOLOv8)
+path: /content/dataset
+train: train/images
+val: val/images
+nc: 9
+names:
+0: bacterialblight   # 0: Mancha Bacteriana
+1: blacksmut         # 1: Carvão da cana
+2: diseases          #2: Outras doenças genéricas
+3: grassyshoot       # 3: Enfezamento (brotão grassada)
+4: healthy           # 4: folha saúdavel
+5: pokkahboeng       # 5: Pokkah Boeng
+6: redrot            # 6: Podridão vermelha
+7: rust              # 7: Ferrugem da cana
+8: yellowleaf        # 8: Amareleecimento (Amarelo da cana)
