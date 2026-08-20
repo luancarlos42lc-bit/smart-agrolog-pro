@@ -36,7 +36,7 @@ DIAGNOSTICOS = {
         "sintomas": "Pústulas alongadas de cor marrom-alaranjada nas folhas.",
         "recomendacao": "Aplicação de fungicidas sistêmicos e uso de variedades resistentes."
     },
-    "Rust": {  # Suporte para o nome em inglês
+    "Rust": {
         "causa": "Fungo Puccinia melanocephala (Ferrugem da Cana)",
         "sintomas": "Pústulas alongadas de cor marrom-alaranjada nas folhas.",
         "recomendacao": "Aplicação de fungicidas sistêmicos e uso de variedades resistentes."
@@ -46,7 +46,7 @@ DIAGNOSTICOS = {
         "sintomas": "Estatura reduzida e surgimento do 'chicote' característico no topo do colmo.",
         "recomendacao": "Roliçamento (eliminação de plantas doentes) e desinfecção de mudas."
     },
-    "Smut": {  # Suporte para Carvão em inglês
+    "Smut": {
         "causa": "Fungo Sporisorium scitamineum (Carvão da Cana)",
         "sintomas": "Estatura reduzida e surgimento do 'chicote' característico no topo do colmo.",
         "recomendacao": "Roliçamento (eliminação de plantas doentes) e desinfecção de mudas."
@@ -65,7 +65,7 @@ DIAGNOSTICOS = {
 
 
 # ---------------------------------------------------------
-# FUNÇÃO PARA GERAR PDF (FASE 1) - CORRIGIDA
+# FUNÇÃO PARA GERAR PDF (FASE 1)
 # ---------------------------------------------------------
 def gerar_pdf(classe_detectada, confianca, imagem_pil):
     info = DIAGNOSTICOS.get(classe_detectada, {
@@ -111,7 +111,6 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
         pdf.image(tmp.name, x=15, w=100)
         tmp_path = tmp.name
 
-    # Correção do método output da biblioteca fpdf2
     pdf_bytes = bytes(pdf.output())
     os.remove(tmp_path)
     return pdf_bytes
@@ -120,8 +119,7 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
 # ---------------------------------------------------------
 # BARRA LATERAL (NAVEGAÇÃO ENTRE FASES)
 # ---------------------------------------------------------
-st.sidebar.image("https://img.icons8.com/color/96/sugar-cane.png", width=80)
-st.sidebar.title("AgroVision AI")
+st.sidebar.title("🌾 AgroVision AI")
 st.sidebar.markdown("Plataforma de Monitoramento Fitossanitário")
 
 opcao_modulo = st.sidebar.radio(
@@ -198,7 +196,6 @@ else:
                 h, w, _ = img_np.shape
                 grid_size = 320  # Tamanho do bloco do grid em pixels
 
-                # Criar máscara para o mapa de calor (Overlay)
                 heatmap_mask = np.zeros_like(img_np, dtype=np.uint8)
 
                 total_quadros = 0
@@ -216,24 +213,18 @@ else:
 
                         total_quadros += 1
 
-                        # Processa cada bloco com a IA
                         results = model.predict(crop, conf=0.20, verbose=False)
                         boxes = results[0].boxes
 
-                        # Se encontrar qualquer anomalia no bloco
                         if len(boxes) > 0:
                             quadros_infectados += 1
-                            # Pinta a área no overlay de VERMELHO (RGB: 255, 0, 0)
-                            heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]
+                            heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]  # Vermelho
                         else:
-                            # Pinta a área no overlay de VERDE (RGB: 0, 255, 0)
-                            heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]
+                            heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde
 
-                # Aplicação de Alpha Blending (Sobreposição com Transparência)
                 alpha = 0.45
                 overlay_resultado = cv2.addWeighted(img_np, 1 - alpha, heatmap_mask, alpha, 0)
 
-                # Cálculo do Índice de Infestação
                 taxa_infestacao = (quadros_infectados / total_quadros * 100) if total_quadros > 0 else 0
 
                 st.subheader("2. Resultado do Mapeamento de Severidade")
