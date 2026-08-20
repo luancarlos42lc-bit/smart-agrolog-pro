@@ -65,7 +65,7 @@ DIAGNOSTICOS = {
 
 
 # ---------------------------------------------------------
-# FUNÇÃO PARA GERAR PDF (FASE 1)
+# FUNÇÃO PARA GERAR PDF (MÓDULO 1)
 # ---------------------------------------------------------
 def gerar_pdf(classe_detectada, confianca, imagem_pil):
     info = DIAGNOSTICOS.get(classe_detectada, {
@@ -117,20 +117,20 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
 
 
 # ---------------------------------------------------------
-# BARRA LATERAL (NAVEGAÇÃO ENTRE FASES)
+# BARRA LATERAL (NAVEGAÇÃO ENTRE MÓDULOS)
 # ---------------------------------------------------------
 st.sidebar.title("🌾 AgroVision AI")
 st.sidebar.markdown("Plataforma de Monitoramento Fitossanitário")
 
 opcao_modulo = st.sidebar.radio(
     "Selecione o Módulo de Análise:",
-    ("🔍 Visão Micro (Análise de Folha - Fase 1)", "🛰️ Visão Macro (Análise de Talhão/Drone - Fase 2)")
+    ("🔍 Visão Micro (Análise de Folha - Módulo 1)", "🛰️ Visão Macro (Análise de Talhão/Drone - Módulo 2)")
 )
 
 # ---------------------------------------------------------
-# MÓDULO 1: VISÃO MICRO (ANALISE DE FOLHA)
+# MÓDULO 1: VISÃO MICRO (ANÁLISE DE FOLHA)
 # ---------------------------------------------------------
-if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Fase 1)":
+if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Módulo 1)":
     st.title("🌾 AgroVision - Análise Focal da Folha")
     st.markdown("Carregue uma imagem aproximada da folha para diagnóstico e emissão de laudo técnico.")
 
@@ -175,12 +175,12 @@ if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Fase 1)":
             st.warning("Nenhuma anomalia evidente foi identificada pelo modelo de IA nesta foto.")
 
 # ---------------------------------------------------------
-# MÓDULO 2: VISÃO MACRO (Mapeamento de Talhão via Drone)
+# MÓDULO 2: VISÃO MACRO (Mapeamento Térmico de Talhão via Drone)
 # ---------------------------------------------------------
 else:
     st.title("🛰️ AgroVision - Monitoramento de Talhões via Drone")
     st.markdown(
-        "Faça upload da imagem aérea/mosaico do talhão para varredura em grid e geração automática do **Mapa de Severidade**.")
+        "Faça upload da imagem aérea/mosaico do talhão para varredura e geração do **Mapa de Calor Térmico de Severidade**.")
 
     uploaded_drone = st.file_uploader("Escolha a foto aérea ou ortomosaico do talhão...", type=["jpg", "jpeg", "png"])
 
@@ -192,19 +192,20 @@ else:
         st.image(image_drone, caption="Mosaico Aéreo Carregado", use_container_width=True)
 
         if st.button("🚀 Processar Varredura e Gerar Mapa de Calor"):
-            with st.spinner("Analisando estrutura do talhão e realizando varredura em alta precisão..."):
+            with st.spinner("Analisando densidade foliar e gerando gradientes de severidade..."):
                 h, w, _ = img_np.shape
 
-                # Tamanho do Bloco Adaptativo Universal (Garante no mínimo ~100 a 400 quadros por análise)
-                grid_size = max(50, min(int(w / 15), 320))
-                conf_threshold = 0.15  # Sensibilidade padrão otimizada
+                # Matriz de densidade de calor em ponto flutuante
+                intensity_map = np.zeros((h, w), dtype=np.float32)
 
-                heatmap_mask = np.zeros_like(img_np, dtype=np.uint8)
+                # Configuração otimizada de varredura
+                grid_size = max(40, min(int(w / 20), 200))
+                conf_threshold = 0.15
 
                 total_quadros = 0
                 quadros_infectados = 0
 
-                # Algoritmo de Tiling (Fatiamento)
+                # Varredura em Grid (Fatiamento)
                 for y in range(0, h, grid_size):
                     for x in range(0, w, grid_size):
                         y_end = min(y + grid_size, h)
@@ -216,40 +217,66 @@ else:
 
                         total_quadros += 1
 
-                        # Inferência da IA no bloco
+                        # Processamento via IA
                         results = model.predict(crop, conf=conf_threshold, verbose=False)
                         boxes = results[0].boxes
 
                         if len(boxes) > 0:
                             quadros_infectados += 1
-                            heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]  # Vermelho (Infecção)
-                        else:
-                            heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde (Saudável)
-
-                # Transparência
-                alpha = 0.45
-                overlay_resultado = cv2.addWeighted(img_np, 1 - alpha, heatmap_mask, alpha, 0)
+                            # Acumula intensidade baseada no número de detecções
+                            intensity_map[y:y_end, x:x_end] += len(boxes)
 
                 taxa_infestacao = (quadros_infectados / total_quadros * 100) if total_quadros > 0 else 0
 
-                st.subheader("2. Resultado do Mapeamento de Severidade")
+                # ---------------------------------------------------------
+                # PROCESSAMENTO DO MAPA DE CALOR (INTERPOLAÇÃO TÉRMICA)
+                # ---------------------------------------------------------
+                if intensity_map.max() > 0:
+                    # 1. Suavização Gaussiana (efeito arredondado e fluido estilo radar)
+                    blur_ksize = max(31, int(min(h, w) / 10) | 1)  # Garante número ímpar
+                    intensity_map = cv2.GaussianBlur(intensity_map, (blur_ksize, blur_ksize), 0)
 
-                col_res1, col_res2 = st.columns(2)
+                    # 2. Normalização (0 a 255)
+                    intensity_map = (intensity_map / intensity_map.max() * 255).astype(np.uint8)
+
+                    # 3. Mapeamento de Cores JET (Azul/Verde -> Amarelo -> Laranja -> Vermelho)
+                    heatmap_color = cv2.applyColorMap(intensity_map, cv2.COLORMAP_JET)
+
+                    # 4. Criação da Máscara de Transparência
+                    # Remove cores nas áreas sem infecção, deixando a imagem original visível
+                    _, mask = cv2.threshold(intensity_map, 25, 255, cv2.THRESH_BINARY)
+
+                    # 5. Aplicação da mistura com opacidade parcial (efeito marca-texto)
+                    alpha = 0.55
+                    overlay = cv2.addWeighted(img_np, 1 - alpha, heatmap_color, alpha, 0)
+
+                    # Aplica o overlay de calor apenas nas regiões afetadas
+                    resultado_final = img_np.copy()
+                    resultado_final[mask > 0] = overlay[mask > 0]
+                else:
+                    resultado_final = img_np.copy()
+
+                # ---------------------------------------------------------
+                # EXIBIÇÃO DOS RESULTADOS
+                # ---------------------------------------------------------
+                st.subheader("2. Resultado do Mapeamento Térmico de Severidade")
+
+                col_res1, col_res2 = st.columns([2, 1])
                 with col_res1:
-                    st.image(overlay_resultado,
-                             caption="Mapa de Severidade (Vermelho = Foco Crítico / Verde = Áreas Sadias)",
+                    st.image(resultado_final, caption="Mapa Térmico de Anomalias (Transparência Orgânica)",
                              use_container_width=True)
 
                 with col_res2:
                     st.metric(label="📊 Taxa de Infestação do Talhão", value=f"{taxa_infestacao:.1f}%")
-                    st.write(f"- **Total de Zonas Analisadas:** {total_quadros}")
-                    st.write(f"- **Zonas com Focos de Doença:** {quadros_infectados}")
+                    st.write(f"- **Zonas Escaneadas:** {total_quadros}")
+                    st.write(f"- **Zonas Afetadas:** {quadros_infectados}")
 
                     if taxa_infestacao < 10:
-                        st.success("✅ **Nível de Severidade: BAIXO**\nTalhão em ótimas condições de sanidade.")
+                        st.success(
+                            "✅ **Nível de Severidade: BAIXO**\nSem áreas críticas visíveis. Talhão em boas condições.")
                     elif taxa_infestacao < 30:
                         st.warning(
-                            "⚠️ **Nível de Severidade: MÉDIO**\nAtenção necessária nas zonas em vermelho. Aplicação localizada recomendada.")
+                            "⚠️ **Nível de Severidade: MÉDIO**\nFocos localizados identificados. Aplicação pontual recomendada.")
                     else:
                         st.error(
-                            "🚨 **Nível de Severidade: CRÍTICO**\nAlta infestação detectada! Planejar aplicação imediata de defensivos via taxa variável.")
+                            "🚨 **Nível de Severidade: CRÍTICO**\nManchas de alta infestação. Planejar intervenção em área total.")
