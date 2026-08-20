@@ -7,7 +7,7 @@ from fpdf import FPDF
 import tempfile
 import os
 
-# Desativa o limite de pixels da biblioteca PIL para suportar fotos gigantes de drone
+# Desativa o limite de pixels da biblioteca PIL para suporte a imagens de drone
 Image.MAX_IMAGE_PIXELS = None
 
 # ---------------------------------------------------------
@@ -81,13 +81,11 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
 
-    # Cabeçalho
     pdf.cell(0, 10, "AgroVision - Laudo de Diagnostico Agronomico", ln=True, align='C')
     pdf.set_font("Arial", size=10)
     pdf.cell(0, 10, "Sistema de Monitoramento e Visao Computacional em Canaviais", ln=True, align='C')
     pdf.ln(10)
 
-    # Dados do Diagnóstico
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 8, f"Diagnostico Detectado: {classe_detectada}", ln=True)
     pdf.set_font("Arial", size=11)
@@ -95,7 +93,6 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
     pdf.cell(0, 8, f"Agente Causal: {info['causa']}", ln=True)
     pdf.ln(5)
 
-    # Sintomas e Recomendação
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 8, "Sintomas Observados:", ln=True)
     pdf.set_font("Arial", size=10)
@@ -108,7 +105,6 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
     pdf.multi_cell(0, 6, info['recomendacao'])
     pdf.ln(8)
 
-    # Salvando Imagem temporária para o PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         imagem_pil.save(tmp.name)
         pdf.image(tmp.name, x=15, w=100)
@@ -120,7 +116,7 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
 
 
 # ---------------------------------------------------------
-# BARRA LATERAL (NAVEGAÇÃO ENTRE MÓDULOS)
+# BARRA LATERAL
 # ---------------------------------------------------------
 st.sidebar.title("🌾 AgroVision AI")
 st.sidebar.markdown("Plataforma de Monitoramento Fitossanitário")
@@ -131,7 +127,7 @@ opcao_modulo = st.sidebar.radio(
 )
 
 # ---------------------------------------------------------
-# MÓDULO 1: VISÃO MICRO (ANÁLISE DE FOLHA)
+# MÓDULO 1: VISÃO MICRO
 # ---------------------------------------------------------
 if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Módulo 1)":
     st.title("🌾 AgroVision - Análise Focal da Folha")
@@ -181,7 +177,7 @@ if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Módulo 1)":
             st.error(f"Erro ao processar imagem da folha: {e}")
 
 # ---------------------------------------------------------
-# MÓDULO 2: VISÃO MACRO (Mapeamento Térmico de Talhão via Drone)
+# MÓDULO 2: VISÃO MACRO (Drone)
 # ---------------------------------------------------------
 else:
     st.title("🛰️ AgroVision - Monitoramento de Talhões via Drone")
@@ -192,10 +188,8 @@ else:
 
     if uploaded_drone is not None:
         try:
-            # Carregamento otimizado de memória para fotos pesadas da DJI
             image_drone = Image.open(uploaded_drone)
 
-            # Corrige rotação EXIF se a foto do drone contiver metadados de orientação
             try:
                 image_drone = ImageOps.exif_transpose(image_drone)
             except Exception:
@@ -203,8 +197,8 @@ else:
 
             image_drone = image_drone.convert("RGB")
 
-            # Redimensiona imagens muito grandes (> 1920px) para otimizar o uso da memória RAM do servidor
-            max_dim = 1920
+            # Ajuste de escala para otimização de RAM
+            max_dim = 1600
             if max(image_drone.size) > max_dim:
                 image_drone.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
@@ -219,14 +213,12 @@ else:
 
                     intensity_map = np.zeros((h, w), dtype=np.float32)
 
-                    # Tamanho de grade adaptativo baseado na resolução
-                    grid_size = max(50, min(int(w / 15), 150))
+                    grid_size = max(40, min(int(w / 12), 120))
                     conf_threshold = 0.15
 
                     total_quadros = 0
                     quadros_infectados = 0
 
-                    # Varredura em Grid (Fatiamento)
                     for y in range(0, h, grid_size):
                         for x in range(0, w, grid_size):
                             y_end = min(y + grid_size, h)
@@ -247,16 +239,13 @@ else:
 
                     taxa_infestacao = (quadros_infectados / total_quadros * 100) if total_quadros > 0 else 0
 
-                    # ---------------------------------------------------------
-                    # INTERPOLAÇÃO TÉRMICA (GAUSSIAN BLUR + JET)
-                    # ---------------------------------------------------------
                     if intensity_map.max() > 0:
-                        blur_ksize = max(31, int(min(h, w) / 8) | 1)
+                        blur_ksize = max(31, int(min(h, w) / 6) | 1)
                         intensity_map = cv2.GaussianBlur(intensity_map, (blur_ksize, blur_ksize), 0)
                         intensity_map = (intensity_map / intensity_map.max() * 255).astype(np.uint8)
 
                         heatmap_color = cv2.applyColorMap(intensity_map, cv2.COLORMAP_JET)
-                        _, mask = cv2.threshold(intensity_map, 20, 255, cv2.THRESH_BINARY)
+                        _, mask = cv2.threshold(intensity_map, 15, 255, cv2.THRESH_BINARY)
 
                         alpha = 0.50
                         overlay = cv2.addWeighted(img_np, 1 - alpha, heatmap_color, alpha, 0)
@@ -266,9 +255,6 @@ else:
                     else:
                         resultado_final = img_np.copy()
 
-                    # ---------------------------------------------------------
-                    # EXIBIÇÃO DOS RESULTADOS DO MÓDULO 2
-                    # ---------------------------------------------------------
                     st.subheader("2. Resultado do Mapeamento Térmico de Severidade")
 
                     col_res1, col_res2 = st.columns([2, 1])
