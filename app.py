@@ -180,7 +180,7 @@ if opcao_modulo == "🔍 Visão Micro (Análise de Folha - Fase 1)":
 else:
     st.title("🛰️ AgroVision - Monitoramento de Talhões via Drone")
     st.markdown(
-        "Faça upload da imagem aérea/mosaico do talhão para varredura em grid e geração do **Mapa de Severidade**.")
+        "Faça upload da imagem aérea/mosaico do talhão para varredura em grid e geração automática do **Mapa de Severidade**.")
 
     uploaded_drone = st.file_uploader("Escolha a foto aérea ou ortomosaico do talhão...", type=["jpg", "jpeg", "png"])
 
@@ -191,23 +191,13 @@ else:
         st.subheader("1. Imagem Aérea do Talhão")
         st.image(image_drone, caption="Mosaico Aéreo Carregado", use_container_width=True)
 
-        # PARÂMETROS DE REGULAGEM NA INTERFACE
-        st.markdown("### ⚙️ Ajustes Fino do Mapeamento")
-        col_param1, col_param2, col_param3 = st.columns(3)
-
-        with col_param1:
-            grid_size = st.slider("Tamanho do Bloco de Varredura (px):", min_value=50, max_value=500, value=100,
-                                  step=25)
-        with col_param2:
-            conf_threshold = st.slider("Sensibilidade da IA (Confiança Mínima):", min_value=0.05, max_value=0.90,
-                                       value=0.15, step=0.05)
-        with col_param3:
-            modo_destaque = st.selectbox("Estilo do Mapa de Calor:",
-                                         ["Apenas Focos Críticos (Vermelho)", "Mapeamento Total (Vermelho e Verde)"])
-
         if st.button("🚀 Processar Varredura e Gerar Mapa de Calor"):
-            with st.spinner("Realizando fatiamento em grid e varredura do canavial com IA..."):
+            with st.spinner("Analisando estrutura do talhão e realizando varredura em alta precisão..."):
                 h, w, _ = img_np.shape
+
+                # Tamanho do Bloco Adaptativo Universal (Garante no mínimo ~100 a 400 quadros por análise)
+                grid_size = max(50, min(int(w / 15), 320))
+                conf_threshold = 0.15  # Sensibilidade padrão otimizada
 
                 heatmap_mask = np.zeros_like(img_np, dtype=np.uint8)
 
@@ -221,24 +211,23 @@ else:
                         x_end = min(x + grid_size, w)
 
                         crop = img_np[y:y_end, x:x_end]
-                        if crop.shape[0] < 20 or crop.shape[1] < 20:
+                        if crop.shape[0] < 15 or crop.shape[1] < 15:
                             continue
 
                         total_quadros += 1
 
-                        # Processa cada bloco com a IA
+                        # Inferência da IA no bloco
                         results = model.predict(crop, conf=conf_threshold, verbose=False)
                         boxes = results[0].boxes
 
                         if len(boxes) > 0:
                             quadros_infectados += 1
-                            heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]  # Vermelho
+                            heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]  # Vermelho (Infecção)
                         else:
-                            if modo_destaque == "Mapeamento Total (Vermelho e Verde)":
-                                heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde
+                            heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde (Saudável)
 
                 # Transparência
-                alpha = 0.50
+                alpha = 0.45
                 overlay_resultado = cv2.addWeighted(img_np, 1 - alpha, heatmap_mask, alpha, 0)
 
                 taxa_infestacao = (quadros_infectados / total_quadros * 100) if total_quadros > 0 else 0
@@ -247,17 +236,20 @@ else:
 
                 col_res1, col_res2 = st.columns(2)
                 with col_res1:
-                    st.image(overlay_resultado, caption="Mapa de Calor do Talhão", use_container_width=True)
+                    st.image(overlay_resultado,
+                             caption="Mapa de Severidade (Vermelho = Foco Crítico / Verde = Áreas Sadias)",
+                             use_container_width=True)
 
                 with col_res2:
                     st.metric(label="📊 Taxa de Infestação do Talhão", value=f"{taxa_infestacao:.1f}%")
-                    st.write(f"- **Total de Blocos Analisados:** {total_quadros}")
-                    st.write(f"- **Blocos com Focos de Doença:** {quadros_infectados}")
+                    st.write(f"- **Total de Zonas Analisadas:** {total_quadros}")
+                    st.write(f"- **Zonas com Focos de Doença:** {quadros_infectados}")
 
                     if taxa_infestacao < 10:
                         st.success("✅ **Nível de Severidade: BAIXO**\nTalhão em ótimas condições de sanidade.")
                     elif taxa_infestacao < 30:
-                        st.warning("⚠️ **Nível de Severidade: MÉDIO**\nAtenção necessária nas zonas em vermelho.")
+                        st.warning(
+                            "⚠️ **Nível de Severidade: MÉDIO**\nAtenção necessária nas zonas em vermelho. Aplicação localizada recomendada.")
                     else:
                         st.error(
-                            "🚨 **Nível de Severidade: CRÍTICO**\nAlta infestação detectada! Planejar aplicação de defensivos.")
+                            "🚨 **Nível de Severidade: CRÍTICO**\nAlta infestação detectada! Planejar aplicação imediata de defensivos via taxa variável.")
