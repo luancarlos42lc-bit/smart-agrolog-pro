@@ -191,10 +191,23 @@ else:
         st.subheader("1. Imagem Aérea do Talhão")
         st.image(image_drone, caption="Mosaico Aéreo Carregado", use_container_width=True)
 
+        # PARÂMETROS DE REGULAGEM NA INTERFACE
+        st.markdown("### ⚙️ Ajustes Fino do Mapeamento")
+        col_param1, col_param2, col_param3 = st.columns(3)
+
+        with col_param1:
+            grid_size = st.slider("Tamanho do Bloco de Varredura (px):", min_value=50, max_value=500, value=100,
+                                  step=25)
+        with col_param2:
+            conf_threshold = st.slider("Sensibilidade da IA (Confiança Mínima):", min_value=0.05, max_value=0.90,
+                                       value=0.15, step=0.05)
+        with col_param3:
+            modo_destaque = st.selectbox("Estilo do Mapa de Calor:",
+                                         ["Apenas Focos Críticos (Vermelho)", "Mapeamento Total (Vermelho e Verde)"])
+
         if st.button("🚀 Processar Varredura e Gerar Mapa de Calor"):
             with st.spinner("Realizando fatiamento em grid e varredura do canavial com IA..."):
                 h, w, _ = img_np.shape
-                grid_size = 320  # Tamanho do bloco do grid em pixels
 
                 heatmap_mask = np.zeros_like(img_np, dtype=np.uint8)
 
@@ -208,21 +221,24 @@ else:
                         x_end = min(x + grid_size, w)
 
                         crop = img_np[y:y_end, x:x_end]
-                        if crop.shape[0] < 50 or crop.shape[1] < 50:
+                        if crop.shape[0] < 20 or crop.shape[1] < 20:
                             continue
 
                         total_quadros += 1
 
-                        results = model.predict(crop, conf=0.20, verbose=False)
+                        # Processa cada bloco com a IA
+                        results = model.predict(crop, conf=conf_threshold, verbose=False)
                         boxes = results[0].boxes
 
                         if len(boxes) > 0:
                             quadros_infectados += 1
                             heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]  # Vermelho
                         else:
-                            heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde
+                            if modo_destaque == "Mapeamento Total (Vermelho e Verde)":
+                                heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]  # Verde
 
-                alpha = 0.45
+                # Transparência
+                alpha = 0.50
                 overlay_resultado = cv2.addWeighted(img_np, 1 - alpha, heatmap_mask, alpha, 0)
 
                 taxa_infestacao = (quadros_infectados / total_quadros * 100) if total_quadros > 0 else 0
@@ -231,8 +247,7 @@ else:
 
                 col_res1, col_res2 = st.columns(2)
                 with col_res1:
-                    st.image(overlay_resultado, caption="Mapa de Calor (Vermelho = Infecção / Verde = Limpo)",
-                             use_container_width=True)
+                    st.image(overlay_resultado, caption="Mapa de Calor do Talhão", use_container_width=True)
 
                 with col_res2:
                     st.metric(label="📊 Taxa de Infestação do Talhão", value=f"{taxa_infestacao:.1f}%")
