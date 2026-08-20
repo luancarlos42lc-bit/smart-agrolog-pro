@@ -22,7 +22,6 @@ st.set_page_config(
 # ---------------------------------------------------------
 @st.cache_resource
 def load_model():
-    # Carrega o modelo treinado (assegure-se de que best.pt está na raiz do projeto)
     return YOLO("best.pt")
 
 
@@ -37,8 +36,18 @@ DIAGNOSTICOS = {
         "sintomas": "Pústulas alongadas de cor marrom-alaranjada nas folhas.",
         "recomendacao": "Aplicação de fungicidas sistêmicos e uso de variedades resistentes."
     },
+    "Rust": {  # Suporte para o nome em inglês
+        "causa": "Fungo Puccinia melanocephala (Ferrugem da Cana)",
+        "sintomas": "Pústulas alongadas de cor marrom-alaranjada nas folhas.",
+        "recomendacao": "Aplicação de fungicidas sistêmicos e uso de variedades resistentes."
+    },
     "Carvao": {
         "causa": "Fungo Sporisorium scitamineum",
+        "sintomas": "Estatura reduzida e surgimento do 'chicote' característico no topo do colmo.",
+        "recomendacao": "Roliçamento (eliminação de plantas doentes) e desinfecção de mudas."
+    },
+    "Smut": {  # Suporte para Carvão em inglês
+        "causa": "Fungo Sporisorium scitamineum (Carvão da Cana)",
         "sintomas": "Estatura reduzida e surgimento do 'chicote' característico no topo do colmo.",
         "recomendacao": "Roliçamento (eliminação de plantas doentes) e desinfecção de mudas."
     },
@@ -56,7 +65,7 @@ DIAGNOSTICOS = {
 
 
 # ---------------------------------------------------------
-# FUNÇÃO PARA GERAR PDF (FASE 1)
+# FUNÇÃO PARA GERAR PDF (FASE 1) - CORRIGIDA
 # ---------------------------------------------------------
 def gerar_pdf(classe_detectada, confianca, imagem_pil):
     info = DIAGNOSTICOS.get(classe_detectada, {
@@ -102,9 +111,10 @@ def gerar_pdf(classe_detectada, confianca, imagem_pil):
         pdf.image(tmp.name, x=15, w=100)
         tmp_path = tmp.name
 
-    pdf_output = pdf.output(dest='S').encode('latin1')
+    # Correção do método output da biblioteca fpdf2
+    pdf_bytes = bytes(pdf.output())
     os.remove(tmp_path)
-    return pdf_output
+    return pdf_bytes
 
 
 # ---------------------------------------------------------
@@ -197,7 +207,6 @@ else:
                 # Algoritmo de Tiling (Fatiamento)
                 for y in range(0, h, grid_size):
                     for x in range(0, w, grid_size):
-                        # Garante que os limites não ultrapassem a imagem
                         y_end = min(y + grid_size, h)
                         x_end = min(x + grid_size, w)
 
@@ -214,14 +223,14 @@ else:
                         # Se encontrar qualquer anomalia no bloco
                         if len(boxes) > 0:
                             quadros_infectados += 1
-                            # Pinta a área no overlay de VERMELHO (RGB: 255, 0, 0) para foco crítico
+                            # Pinta a área no overlay de VERMELHO (RGB: 255, 0, 0)
                             heatmap_mask[y:y_end, x:x_end] = [255, 0, 0]
                         else:
-                            # Pinta a área no overlay de VERDE (RGB: 0, 255, 0) para saudável
+                            # Pinta a área no overlay de VERDE (RGB: 0, 255, 0)
                             heatmap_mask[y:y_end, x:x_end] = [0, 255, 0]
 
-                # Aplicação de Alpha Blending (Sobreposição do Mapa de Calor com Transparência)
-                alpha = 0.45  # Nível de transparência (45%)
+                # Aplicação de Alpha Blending (Sobreposição com Transparência)
+                alpha = 0.45
                 overlay_resultado = cv2.addWeighted(img_np, 1 - alpha, heatmap_mask, alpha, 0)
 
                 # Cálculo do Índice de Infestação
@@ -240,11 +249,9 @@ else:
                     st.write(f"- **Blocos com Focos de Doença:** {quadros_infectados}")
 
                     if taxa_infestacao < 10:
-                        st.success(
-                            "✅ **Nível de Severidade: BAIXO**\nTalhão em ótimas condições sanidade. Manter apenas monitoramento.")
+                        st.success("✅ **Nível de Severidade: BAIXO**\nTalhão em ótimas condições de sanidade.")
                     elif taxa_infestacao < 30:
-                        st.warning(
-                            "⚠️ **Nível de Severidade: MÉDIO**\nAtenção necessária nas zonas em vermelho. Recomenda-se aplicação focalizada.")
+                        st.warning("⚠️ **Nível de Severidade: MÉDIO**\nAtenção necessária nas zonas em vermelho.")
                     else:
                         st.error(
-                            "🚨 **Nível de Severidade: CRÍTICO**\nAlta infestação detectada! Planejar aplicação imediata de defensivos via taxa variável.")
+                            "🚨 **Nível de Severidade: CRÍTICO**\nAlta infestação detectada! Planejar aplicação de defensivos.")
